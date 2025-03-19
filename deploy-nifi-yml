@@ -1,0 +1,35 @@
+name: Deploy NiFi Flow to Edge
+
+on:
+  push:
+    branches:
+      - main  # Trigger the workflow when code is pushed to the main branch
+
+jobs:
+  build-and-upload:
+    runs-on: ubuntu-latest  # Use the latest Ubuntu runner
+
+    steps:
+      # Checkout the repository code
+      - name: Checkout Code
+        uses: actions/checkout@v3
+        
+      # Zip the NiFi flow files
+      - name: Zip NiFi Flow
+        run: zip -r nifi-flow.zip nifi-flows/  # Adjust the folder path based on where your flow files are located
+
+      # Set up AWS credentials for subsequent AWS CLI commands
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      # Upload the zipped NiFi flow to the S3 bucket
+      - name: Upload NiFi Flow to S3
+        run: aws s3 cp nifi-flow.zip s3://nifi-flow-deployments/  # Ensure your S3 bucket exists
+
+      # Send a message to an SQS queue notifying that a new NiFi flow is available
+      - name: Send Message to SQS
+        run: aws sqs send-message --queue-url ${{ secrets.SQS_URL }} --message-body "New NiFi Flow Available"
